@@ -1,4 +1,4 @@
-module near-go
+module github.com/streamingfast/near-go
 
 go 1.16
 
