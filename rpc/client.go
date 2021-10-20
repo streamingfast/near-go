@@ -29,6 +29,12 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const (
+	Retries = 3
+	RetryInterval = 1*time.Second
+	MaxRetryInterval = 10*time.Second
+)
+
 type ClientOption = func(cli *Client) *Client
 
 type Client struct {
@@ -95,8 +101,31 @@ func (c *Client) callFor(ctx context.Context, out interface{}, method string, pa
 		logger.Info("performed JSON-RPC call", fields...)
 	}()
 
-	//TODO: https://github.com/ybbus/jsonrpc/pull/39/commits
-	resp, err := c.rpcClient.CallRaw(req)
+	try := 0
+	var resp *jsonrpc.RPCResponse
+	var err error
+
+	for try < Retries {
+		if try > 0 {
+			time.Sleep(func(attempt int) time.Duration {
+				result := time.Duration(try) * RetryInterval
+				if result > MaxRetryInterval {
+					return MaxRetryInterval
+				}
+				return result
+			}(try))
+		}
+		try++
+
+		//TODO: https://github.com/ybbus/jsonrpc/pull/39/commits
+		resp, err = c.rpcClient.CallRaw(req)
+		if err != nil {
+			continue
+		}
+
+		break
+	}
+
 	if err != nil {
 		return err
 	}
